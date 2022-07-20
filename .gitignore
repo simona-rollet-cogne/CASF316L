@@ -2,3 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
+doc/*.html
+*.Rproj
+doc/trash/*.html
+doc/trash/*Rmd
