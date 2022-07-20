@@ -1,0 +1,59 @@
+---
+title: "Progetto"
+subtitle: "casF316L"
+author: "cscarabelli@cogne.com"
+version: 1.0 
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    css: ./custom.css
+    df_print: paged
+    gallery: no
+    highlight: default
+    html_document: null
+    lightbox: yes
+    number_sections: yes
+    self_contained: yes
+    thumbnails: no
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE,
+                      message = FALSE,
+                      error = FALSE,
+                      fig.height = 7,
+                      fig.width = 10,
+                      collapse = TRUE,
+                      cols.print=20)
+rm(list = ls(all.names = TRUE))
+
+```
+
+# Obiettivo
+
+
+L’obiettivo del progetto consiste in:
+
+1. identificare fra le variabili di processo quelle che hanno un impatto significativo sui deviati per lesioni metallurgiche al collaudo DIF* su barre PEL di F316L.
+1. misurare, per le variabili di processo significative, la misura dell’impatto.
+1. costruire un modello che permetta stimare gli scarti in funzione di tali variabili, evidenziandone i limiti.
+
+Causali dei deviati per lesioni metallurgiche:
+
+1.	Spaccature longitudinali;
+1.	Cricca;
+1.	Sfoglie.
+
+
+# Fasi del progetto
+1.	Processo
+1.	Progetto
+1.	Data mapping
+1.	Data preparation
+1.	Data discovery
+1.	Data modeling
+1.  Summary
+

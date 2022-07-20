@@ -1,0 +1,348 @@
+---
+title: "Explanatory Model Analysis"
+subtitle: "cas415"
+author: "srollet@cogne.com"
+version: 1.0 
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    css: ./custom.css
+    df_print: paged
+    gallery: no
+    highlight: default
+    html_document: null
+    lightbox: yes
+    number_sections: yes
+    self_contained: yes
+    thumbnails: no
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE,
+                      error = FALSE,
+                      fig.height = 7,
+                      fig.width = 10,
+                      collapse = TRUE,
+                      cols.print=20)
+rm(list = ls(all.names = TRUE))
+require(dplyr)
+require(rlang)
+require(tidyr)
+require(kableExtra)
+require(readr)
+require(ggplot2)
+require(rpart)
+require(rpart.plot)
+require(randomForest)
+library(DALEX)
+library(archivist)
+source('~/dev/cas415/R/function.R')
+```
+
+lettura dati e cleaning (considero solo l'analisi chimica)
+
+```{r loading}
+
+carmet415M3 <- read_rds('/data/cas415/carmet415M3.rds')
+                       
+```
+
+```{r cleaning delle variabili}
+carmet415M3_model <- carmet415M3 %>% 
+  select(-c(index,colata,scheda,rm_test1, sommaNbV)) %>% 
+  select(rm, C:N2)
+
+```
+
+# Creazione Modelli da esplorare
+
+## Decision Tree
+
+```{r albero2}
+
+fm <- rpart(formula=rm ~ .,
+            data = carmet415M3_model,
+            method = 'anova',
+            cp = 0.03)
+            
+```
+
+
+## Regressione lineare
+
+troviamo un modello lineare con le variabili indicate dall'albero considerando anche le interazioni di grado 2.
+
+```{r linear model2}
+
+fm_lm <- lm(rm ~ (V+ Nb +P)^2,
+            data = carmet415M3_model)
+
+```
+
+testiamo il modello ad interazioni ridotte
+
+```{r  test modello2}
+
+fm_lm1 <- lm(rm ~ V+ Nb+ P+ V:P + Nb:P,
+            data = carmet415M3_model)
+
+```
+
+
+
+## Random Forest 
+```{r rf now}
+
+rf <- randomForest(formula=rm ~ .,
+            data = carmet415M3_model,  importance=T)  #usare importance=T per permutazione
+
+
+```
+
+
+# DALEX
+
+Il pacchetto DALEX permette di investigare i modelli visualizzando come si comportano su una singola osservazione
+
+## Creazione explainer
+
+La prima fase consiste nella creazione di un explainer per ogni modello utilizzato, cioè un formato standard di ogni modello
+
+```{r}
+
+# creazione di explainer per ogni modello
+
+lm_exp <- explain.default(model = fm_lm1,
+                    data = carmet415M3_model,
+                    y = carmet415M3_model$rm,
+                    label = 'linear regression',
+                    type = 'regression')
+tree_exp <- explain.default(model = fm,
+                    data = carmet415M3_model,
+                    y = carmet415M3_model$rm,
+                    label = 'decision tree')
+rf_exp <- explain.default(model = rf,
+                    data = carmet415M3_model,
+                    y = carmet415M3_model$rm,
+                    label = 'random forest')
+
+```
+
+
+## Scelta dell'osservazione da spiegare 
+
+
+
+```{r osservazione}
+
+carmet415M3_exp <- carmet415M3_model %>% 
+  select(-rm)
+  
+#per usare una osservazione del dataset di training
+
+which.min(carmet415M3_model$rm)
+
+n <- 413
+
+obs <- carmet415M3_model[n,1]
+
+observation <- carmet415M3_exp[n,]
+
+
+#per inserire nuova analisi ipotetica
+new <- carmet415M3_model
+new <- tibble(
+V = 0.02,
+Nb = 0.08,
+P = mean(new$P),
+Ni = mean(new$Ni),
+Cu = mean(new$Cu),
+C = mean(new$C),
+S = mean(new$S),
+Si = mean(new$Si),
+Mn = mean(new$Mn),
+Cr = mean(new$Cr),
+Mo = mean(new$Mo),
+Sn = mean(new$Sn),
+Al = mean(new$Al),
+W = mean(new$W),
+Co = mean(new$Co),
+Ti = mean(new$Ti),
+Ca = mean(new$Ca),
+N2 = mean(new$N2))
+
+new2 <- tibble(
+V = 0.08,
+Nb = 0.01,
+P = mean(new$P),
+Ni = mean(new$Ni),
+Cu = mean(new$Cu),
+C = mean(new$C),
+S = mean(new$S),
+Si = mean(new$Si),
+Mn = mean(new$Mn),
+Cr = mean(new$Cr),
+Mo = mean(new$Mo),
+Sn = mean(new$Sn),
+Al = mean(new$Al),
+W = mean(new$W),
+Co = mean(new$Co),
+Ti = mean(new$Ti),
+Ca = mean(new$Ca),
+N2 = mean(new$N2))
+
+
+```
+
+**L'osservazione scelta ha un rm misurato pari a: ** `r obs`
+
+**oppure la seguente analisi chimica: ** `r new`
+
+
+## Primo metodo: Break-Down Plot
+
+In *new_observation* usare il parametro *observation* se si vuole utilizzare una riga del dataset, oppure il parametro *new* se si vuole inserire una nuova analisi chimica
+
+```{r bd plot}
+
+# Break-Down plot
+#tree
+
+bd_tree <- predict_parts(explainer = tree_exp,
+                       new_observation = new,
+                       type = 'break_down',
+                       keep_distribution = TRUE)
+plot(bd_tree, plot_distribution = TRUE)
+
+# lm
+
+bd_lm <- predict_parts(explainer = lm_exp,
+                       new_observation = new,
+                       type = 'break_down',
+                       keep_distribution = TRUE)
+plot(bd_lm, plot_distribution = TRUE)
+
+# rf
+bd_rf <- predict_parts(explainer = rf_exp,
+                       new_observation = new,
+                       type = 'break_down',
+                       keep_distributions = TRUE)
+plot(bd_rf, plot_distributions = FALSE)
+
+```
+
+### Break-Down con Violin plot
+
+```{r violin plot}
+
+plot(bd_tree, plot_distributions = TRUE)
+plot(bd_lm, plot_distributions = TRUE)
+plot(bd_rf, plot_distributions = TRUE)
+
+```
+
+## Secondo metodo: SHAP
+
+```{r shap}
+
+# Decision Tree
+
+shap_tree <- predict_parts(explainer = tree_exp,
+                new_observation = new,
+                type = 'shap',
+                B = 25)
+plot(shap_tree)
+
+# Linear Model
+
+shap_lm <- predict_parts(explainer = lm_exp,
+                new_observation = new,
+                type = 'shap',
+                B = 25)
+plot(shap_lm)
+
+# Random Forest
+
+shap_rf <- predict_parts(explainer = rf_exp,
+                new_observation = new,
+                type = 'shap',
+                B = 25)
+plot(shap_rf)
+
+
+```
+
+
+## Terzo metodo: Ceteris Paribus
+
+vario una variabile alla volta tenendo le altre costanti
+
+```{r ceteris paribus}
+
+# Decision Tree for new (V = 0.02, Nb 0.08)
+
+cp_tree <- predict_profile(explainer = tree_exp,
+                new_observation = new)
+
+plot(cp_tree, variables = c('Nb')) 
+plot(cp_tree, variables = c('V')) 
+
+
+# Decision Tree for new2 (V = 0.08, Nb 0.01)
+
+cp_tree <- predict_profile(explainer = tree_exp,
+                new_observation = new2)
+
+plot(cp_tree, variables = c('Nb')) 
+plot(cp_tree, variables = c('V')) 
+
+# Linear Model for new (V = 0.02, Nb 0.08)
+
+cp_lm <- predict_profile(explainer = lm_exp,
+                new_observation = new)
+
+plot(cp_lm, variables = c( 'Nb'))
+plot(cp_lm, variables = c( 'V'))
+
+
+# Random Forest for new (V = 0.02, Nb 0.08)
+
+cp_rf <- predict_profile(explainer = rf_exp,
+                new_observation = new)
+
+plot(cp_rf, variables = c('Nb'))
+plot(cp_rf, variables = c('V'))
+
+# Random Forest for new2 (V = 0.08, Nb 0.01)
+
+cp_rf <- predict_profile(explainer = rf_exp,
+                new_observation = new2)
+
+plot(cp_rf, variables = c('Nb'))
+plot(cp_rf, variables = c('V'))
+
+
+```
+
+## Feature importance con DALEX (50 permutazioni)
+
+```{r feature importance}
+
+vip_tree <- model_parts(explainer = tree_exp, B = 50, N = NULL)
+vip_lm <- model_parts(explainer = lm_exp, B = 50, N = NULL)
+vip_rf <- model_parts(explainer = rf_exp, B = 50, N = NULL)
+
+plot(vip_tree) +
+  ggtitle('Decision Tree Mean variable importance over 50 permutations')
+plot(vip_lm) +
+  ggtitle('Linear Model Mean variable importance over 50 permutations')
+plot(vip_rf) +
+  ggtitle('Random Forest Mean variable importance over 50 permutations')
+
+
+```
+

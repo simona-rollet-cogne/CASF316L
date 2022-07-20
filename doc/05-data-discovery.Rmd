@@ -1,0 +1,163 @@
+---
+title: "Data Discovery "
+subtitle: "casF316L"
+author: "srollet@cogne.com"
+version: 1.0 
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    css: ./custom.css
+    df_print: paged
+    gallery: no
+    highlight: default
+    html_document: null
+    lightbox: yes
+    number_sections: yes
+    self_contained: yes
+    thumbnails: no
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE,
+                      error = FALSE,
+                      fig.height = 7,
+                      fig.width = 10,
+                      collapse = TRUE,
+                      cols.print=20)
+rm(list = ls(all.names = TRUE))
+require(dplyr)
+require(rlang)
+require(kableExtra)
+require(readr)
+require(ggplot2)
+source('~/dev/cas415/R/function.R')
+```
+
+leggiamo i dati 
+
+```{r zerty}
+
+F316L <- read_rds('/data/casF316L/F316L.rds')
+                       
+```
+
+# Analisi della variabile risposta (rapp)
+
+analisi rapp
+
+```{r analisi rm}
+
+pl <- ggplot(F316L)+
+  geom_line(aes(index,rapp))+
+  geom_point(aes(index,rapp))+
+  geom_smooth(aes(index,rapp),method = 'loess', se=FALSE, col='red')
+  
+  print(pl)
+                       
+```
+
+
+# Analisi delle variabili input (chimica + parametri CC)
+
+analisi chimica nel tempo
+
+```{r chim_temp, results='asis'}
+vars <- F316L %>%
+  names()
+titles <- paste('## Andamento nel tempo della variabile ', vars)
+
+n <- length(vars)
+
+for (i in seq_len(n)) {
+  var_i <- vars[i]
+  title_i <- titles[i]
+  pl <- ggplot(F316L)+
+    geom_line(aes(index,!!sym(var_i)))+
+                geom_smooth(aes(index,!!sym(var_i)),method = 'loess', se=FALSE, col='red')
+              
+              cat(title_i, '\n')
+              print(pl)
+              cat('<p>')
+}                     
+```
+
+# Analisi delle correlazioni variabili input VS variabile risposta (Rm)
+
+analisi di correlazioni
+
+```{r correlazioni,results='asis'}
+response <- 'rapp'
+vars <- F316L %>% 
+  select(-c(index, colata, colataAOD, colataUHP, imp, dev, data_chim,report_counter_cc)) %>% 
+  names()
+n <- length(vars)
+
+for (i in seq_len(n)) {
+  var_i <- vars[i]
+  pl <- ggplot(F316L) +
+    geom_point(aes(!!sym(var_i),!!sym(response))) +
+    geom_smooth(
+      aes(!!sym(var_i),!!sym(response)),
+      color = 'red',
+      se = FALSE,
+      method = 'loess'
+    ) +
+    geom_smooth(
+      aes(!!sym(var_i),!!sym(response)),
+      color = 'green',
+      se = FALSE,
+      method = 'lm'
+    )
+  title <- paste('## Variabile: ', var_i)
+  cat(title, '\n')
+  print(pl)
+  cat('<p>') #necessario per terminare paragrafo
+}
+```
+
+
+# analisi contributo variabili più influenti
+
+```{r Tprimario,results='asis'}
+F316L <- F316L %>% 
+  mutate(portata_primario_sd = case_when(portata_primario_std_dev < 3 ~ 'bassa',
+                                   TRUE ~ 'alta'))
+
+
+
+F316L <- F316L %>% 
+  mutate(posiz_pistone = case_when(pos_pistone_finale_media < 78 ~ 'bassa',
+                                   TRUE ~ 'alta'))
+
+
+ggplot(F316L) +
+  geom_boxplot(aes(rapp, portata_primario_sd)) +
+  #facet_grid(~ posiz_pistone) +
+  coord_flip()
+
+
+ggplot(F316L) +
+  geom_boxplot(aes(rapp, posiz_pistone)) +
+  #facet_grid(~ portata_primario_sd) +
+  coord_flip()
+
+
+ggplot(F316L) +
+  geom_point(aes(portata_primario_std_dev, rapp)) +
+  #facet_grid(~posiz_pistone) +
+  geom_smooth(aes(portata_primario_std_dev, rapp), method = 'lm')
+
+ggplot(F316L) +
+  geom_point(aes(pos_pistone_finale_media, rapp)) +
+  facet_grid(~portata_primario_sd) +
+  geom_smooth(aes(pos_pistone_finale_media, rapp), method = 'lm')
+
+ggplot(F316L) +
+  geom_point(aes(pos_pistone_finale_media, rapp))
+
+```
+

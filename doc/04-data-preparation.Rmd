@@ -1,0 +1,147 @@
+---
+title: "Data Preparation "
+subtitle: "casF316L"
+author: "srollet@cogne.com"
+version: 1.0 
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    css: ./custom.css
+    df_print: paged
+    gallery: no
+    highlight: default
+    html_document: null
+    lightbox: yes
+    number_sections: yes
+    self_contained: yes
+    thumbnails: no
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE,
+                      error = FALSE,
+                      fig.height = 7,
+                      fig.width = 10,
+                      collapse = TRUE,
+                      cols.print=20)
+rm(list = ls(all.names = TRUE))
+
+require(dplyr)
+require(kableExtra)
+require(readr)
+source('~/dev/cas415/R/function.R')
+```
+
+# Dati per scheda
+
+Importiamo il file header.csv
+
+
+```{r asdf}
+header_chim <- read_delim('/data/casF316L/header_chim.csv', 
+                     delim=';',
+                     col_type=cols())
+
+header_CC <- read_delim('/data/casF316L/header_CC.csv', 
+                     delim=';',
+                     col_type=cols())
+
+
+```
+
+estraiamo i colnames dall'header
+
+```{r qwerdty}
+col_name <- header_chim %>% 
+  pull(variabile)
+```
+
+estraiamo i coltype dall'header
+
+```{r qwerty}
+col_type <- header_CC %>% 
+  pull(col_type)
+```
+
+
+
+leggiamo i dati 
+
+```{r zerty}
+F316L_chimiche <- read_delim('/data/casF316L/F316Lchimica.txt',
+                          delim = NULL,
+                          skip = 1,
+                          col_names = col_name,
+                          col_types = col_type,
+                          n_max = Inf)
+
+F316L_chimiche$colata <- as.character(F316L_chimiche$colata)
+
+```
+
+```{r gzerty}
+F316L_CC <- read_rds('~/R/dati_cc_medie.rds')
+
+F316L_CC$colata <- as.character(F316L_CC$colata)
+
+```
+
+```{r zerfty}
+F316L_deviati <- read_delim('/data/casF316L/F316Ldeviati.txt',
+                          delim = NULL,
+                          skip = 1,
+                          col_names = c('colata', 'imp', 'dev', 'rapp'),
+                          col_types = 'cddd',
+                          n_max = Inf)
+
+```
+
+
+
+uniamo i due dataset
+
+```{r ztfddy}
+
+F316L <- F316L_deviati %>% 
+  left_join(F316L_chimiche,by='colata') %>% 
+  left_join(F316L_CC, by='colata') %>% 
+  select(colata,rapp, everything())
+
+```
+
+
+riordino variabili
+
+```{r djfbs}
+F316L <- F316L %>% 
+  select(colata,imp,dev,rapp,everything())
+```
+
+aggiugo indici di riga nella prima colonna
+
+```{r dsjfkwj}
+F316L <- F316L %>% 
+  mutate(index = row_number()) %>% 
+  select(index, everything())
+```
+
+contiamo le righe 
+
+```{r serty}
+nrow(F316L)
+nrow(F316L_CC)
+nrow(F316L_chimiche)
+nrow(F316L_deviati)
+```
+
+salva rds
+
+```{r xerty}
+write_rds(F316L,'/data/casF316L/F316L.rds')
+```
+
+

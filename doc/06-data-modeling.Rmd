@@ -1,0 +1,194 @@
+---
+title: "Data Modeling"
+subtitle: "casF316L"
+author: "srollet@cogne.com"
+version: 1.0 
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    css: ./custom.css
+    df_print: paged
+    gallery: no
+    highlight: default
+    html_document: null
+    lightbox: yes
+    number_sections: yes
+    self_contained: yes
+    thumbnails: no
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE,
+                      error = FALSE,
+                      fig.height = 7,
+                      fig.width = 10,
+                      collapse = TRUE,
+                      cols.print=20)
+rm(list = ls(all.names = TRUE))
+require(dplyr)
+require(rlang)
+require(tidyr)
+require(kableExtra)
+require(readr)
+require(ggplot2)
+require(rpart)
+require(rpart.plot)
+require(randomForest)
+source('~/dev/cas415/R/function.R')
+```
+
+leggiamo i dati 
+
+```{r loading}
+F316L <- read_rds('/data/casF316L/F316L.rds')
+                       
+```
+
+```{r cleaning delle variabili}
+F316L <- F316L %>% 
+  select(-c(index,colata,colataUHP, rapp, colataAOD, data_chim, report_counter_cc,marca ))
+```
+
+
+
+# Albero di regressione (variabile risposta continua)
+
+albero rapp
+
+```{r albero}
+
+F316L_tree <- F316L %>% 
+  select(-imp)
+
+fm <- rpart(formula=dev ~ .,
+            data = F316L_tree,
+            method = 'poisson',
+            cp = 0.04,
+            weights = F316L$imp)
+```
+
+plot dell'albero 
+
+```{r plot}
+
+rpart.plot(fm,
+           extra=101)
+
+```
+
+
+
+```{r print}
+
+print(fm)
+
+```
+
+
+# Random Forest 
+
+```{r rf now}
+
+F316L[is.na(F316L)] <- 0
+
+F316L_rf <- F316L %>% 
+  select(-c(liv_cassetto_2_to_4, liv_cassetto_over_4, assorb_motori_media, pr01_forza_media, pr01_sezione_media, pr01a_forza_media, pr01a_sezione_media, pr02_forza_media, pr02_sezione_media, pr02a_forza_media, pr02a_sezione_media, pr02b_forza_media, pr02b_sezione_media, imp)) 
+
+rf <- randomForest(formula=dev ~ .,
+            data = F316L_rf,  
+            importance=T, 
+            weights = F316L$imp)  #usare importance=T per permutazione
+
+varImpPlot(rf, sort=TRUE, n.var=min(20, nrow(rf$importance)),
+           type=NULL, class=NULL, scale=F, size=10) 
+
+```
+
+
+# Regressione
+
+Troviamo un modello di regressione con le variabili indicate dall'albero considerando anche le interazioni di grado 2
+
+```{r linear model poisson}
+F316L$imp <- as.integer(F316L$imp)
+F316L$dev <- as.integer(F316L$dev)
+
+fm_glm <- lm(dev ~ (pos_pistone_finale_media + portata_primario_std_dev)^2,
+            data = F316L,  weights = imp)
+
+summary(fm_glm)
+
+```
+
+<!-- testiamo il modello ad interazioni ridotte -->
+
+<!-- ```{r  testi modello} -->
+
+<!-- fm_lm1 <- lm(rapp ~ (pos_pistone_finale_media + V)^2, -->
+<!--             data = F316L) -->
+
+<!-- summary(fm_lm1) -->
+<!-- ``` -->
+
+<!-- faccio una anova per i due modelli, con ipotesi nulla *i due modelli sono diversi* -->
+
+<!-- ```{r anova} -->
+
+<!-- #anova(fm_lm1,fm_lm,test='F') -->
+
+<!-- ``` -->
+
+<!-- verifico il modello -->
+
+<!-- ```{r verifica} -->
+<!-- par(mfrow=c(2,2)) -->
+<!-- plot(fm_lm1) -->
+<!-- par(mfrow=c(1,1)) -->
+<!-- ``` -->
+
+<!-- plot residui VS singole variabili -->
+
+<!-- ```{r residui} -->
+<!-- carmet415M3_model %>%  -->
+<!--   select(V,Nb,P,Ni,Cu) %>%  -->
+<!--   mutate(res=residuals(fm_lm1)) %>%  -->
+<!--   pairs() -->
+
+<!-- ``` -->
+<!-- griglia dei valori -->
+
+<!-- ```{r grid} -->
+
+<!-- d <- carmet415M3 -->
+
+<!-- d <- expand_grid( -->
+<!-- V = seq(min(d$V),max(d$V),length=4), -->
+<!-- Nb = seq(min(d$Nb),max(d$Nb),length=10), -->
+<!-- P = seq(min(d$P),max(d$P),length=4), -->
+<!-- Ni = seq(min(d$Ni),max(d$Ni),length=10), -->
+<!-- Cu = seq(min(d$Cu),max(d$Cu),length=4)) -->
+
+
+<!-- d_prd <- predict(fm_lm1,d,interval='prediction') %>%  -->
+<!--   as_tibble() -->
+
+<!-- d <- d %>% bind_cols(d_prd) -->
+
+<!-- ``` -->
+
+<!-- plot variabili principali -->
+
+<!-- ```{r dcasc} -->
+
+<!-- ggplot(d, aes(Nb, fit)) + -->
+<!--   geom_smooth(aes(group =factor(P), color=factor(P)), method='lm', se=F) + -->
+<!--   geom_point(aes(color=factor(P))) +  -->
+<!--   facet_grid(Cu~V, labeller = label_both) -->
+
+<!-- ``` -->
+
+
